@@ -1,0 +1,85 @@
+---
+title: "Predicting Quality of Fitness exercise"
+author: "G. Maas"
+date: "August 5, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, The goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict if an exercise is well done.
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. 
+
+For the process of model selection I fitted 4 different models/algorithms and choosed the model with the highest accuracy. In my case this appeared to be the "Support Vector Machines" model.
+
+With this model I predicted the 20 samples.
+
+##Exploring the data
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. 
+
+Background information can be found in this paper:
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+load the data and preprocess:
+```{r}
+traindat = read.csv("D://Users/Gerjan/R/prctcl-mchn-lrnng/pml-training.csv")
+valdat = read.csv("D://Users/Gerjan/R/prctcl-mchn-lrnng/pml-testing.csv")
+valdat1<-valdat[, colSums(is.na(valdat)) != nrow(valdat)]
+valdat2<-valdat1[,8:59]
+a<-c(names(valdat1),"classe")
+traindat1<-traindat[,(names(traindat) %in% a)]
+traindat2<-traindat1[,8:60]
+traindat3<-traindat[,c(1,8:60)]
+```
+
+split the traindata in  trainset and a testset
+```{r,warning=FALSE}
+library(caret)
+inTrain<-createDataPartition(y=traindat3$X,p=0.75,list=FALSE)
+training<-traindat2[inTrain,]
+testing<-traindat2[-inTrain,]
+rbind("original dataset" =dim(traindat1),"training set"=dim(training))
+```
+### Fit models
+4 different algorithms are used: trees, Linear Discriminant Analyse, Naive BAyes and Support Vector Machines.
+I'd liked to try Random forrest and boosting, but these where too heavy for my PC.
+
+#### Cross Validation
+I used cross validation with 5 samples to improve accuracy on all 4 models.
+
+```{r,warning=FALSE,cache=TRUE}
+library(e1071)
+library(caret)
+trainCtrl <- trainControl(method = "cv", number = 5)
+modfit.rpart <- train(classe ~., method = "rpart", trControl = trainCtrl, data = training)
+modfit.lda <- train(classe ~., method = "lda", trControl = trainCtrl, data = training)
+modfit.nb <- train(classe ~., method = "nb", trControl = trainCtrl, data = training)
+modfit.svm <- svm(training$classe ~ ., data = training,cross=5)
+```
+
+### Model selection
+With the 4 models a prediction is made on the test set, and compared with the real values. The test set is used for this to take the out of sample error into account, and to prevent overfitting.
+```{r,warning=FALSE}
+cmatrix.rpart<-confusionMatrix(testing$classe,predict(modfit.rpart,testing))
+cmatrix.lda<-confusionMatrix(testing$classe,predict(modfit.lda,testing))
+cmatrix.nb<-confusionMatrix(testing$classe,predict(modfit.nb,testing))
+cmatrix.svm<-confusionMatrix(testing$classe,predict(modfit.svm, testing))
+
+cmatrix.rpart
+cmatrix.lda
+cmatrix.nb
+cmatrix.svm
+```
+Looking at the accuracy the svm model is best with an accuracy above 0.95. So the SVM model is choosen.
+
+### Conclusion and Prediction 
+In my case the "Support Vector Machines" model" is best. With this model I predict the 20 samples given:
+```{r}
+predictresults<-predict(modfit.svm,valdat2)
+predictresults
+table(predictresults)
+```
